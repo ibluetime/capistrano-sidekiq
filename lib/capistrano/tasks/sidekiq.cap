@@ -87,7 +87,7 @@ namespace :sidekiq do
     end
   end
 
-  def start_sidekiq(pid_file, idx = 0)
+  def start_sidekiq(pid_file, idx = 0, role = nil)
     args = []
     args.push "--index #{idx}"
     args.push "--pidfile #{pid_file}"
@@ -98,7 +98,9 @@ namespace :sidekiq do
     Array(fetch(:sidekiq_queue)).each do |queue|
       args.push "--queue #{queue}"
     end
-    args.push "--config #{fetch(:sidekiq_config)}" if fetch(:sidekiq_config)
+    config = fetch(:"#{role}_config") || fetch(:sidekiq_config)
+    args.push "--config #{config}" if config
+
     args.push "--concurrency #{fetch(:sidekiq_concurrency)}" if fetch(:sidekiq_concurrency)
     if process_options = fetch(:sidekiq_options_per_process)
       args.push process_options[idx]
@@ -159,10 +161,11 @@ namespace :sidekiq do
 
   desc 'Start sidekiq'
   task :start do
-    on roles fetch(:sidekiq_role) do
+    on roles fetch(:sidekiq_role) do |role|
+      role = (Array(role.roles) & Array(fetch(:sidekiq_role)))[0]
       switch_user do
         for_each_process do |pid_file, idx|
-          start_sidekiq(pid_file, idx) unless pid_process_exists?(pid_file)
+          start_sidekiq(pid_file, idx, role) unless pid_process_exists?(pid_file)
         end
       end
     end
